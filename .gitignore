@@ -1,0 +1,8 @@
+node_modules/
+.env
+.env.*
+*.p8
+AuthKey_*.p8
+.DS_Store
+Thumbs.db
+*.log

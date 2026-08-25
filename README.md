@@ -1,0 +1,98 @@
+# duka_apple_testflight
+
+Página de entrada no **teste beta do Duka** via TestFlight. Substitui o link da
+App Store enquanto o app não está publicado.
+
+Uma página, sem framework, **sem dependências** — só o `http`/`fs` do Node. O
+`npm install` aqui não instala nada, e isso é de propósito: o projeto vive no
+`G:`, que é exFAT, onde instalação de pacote é lenta e quebra com symlink.
+
+## Como funciona
+
+O visitante cai na página e vê o caminho certo pro aparelho dele:
+
+| Situação | O que aparece |
+|---|---|
+| iPhone / iPad | Os 3 passos: instalar TestFlight → entrar no teste → instalar |
+| Computador | "Abra no seu iPhone" + endereço para copiar |
+| Android | Aviso de que o teste Android vem por outro caminho + suporte |
+| `TESTFLIGHT_URL` ausente ou inválida | "As vagas abrem em breve" |
+
+O código de resgate (os 8 caracteres finais do link) aparece na tela com botão
+de copiar, pro caso do link não abrir o TestFlight sozinho — aí é
+*TestFlight → Resgatar → colar*.
+
+## Variáveis de ambiente
+
+| Variável | Obrigatória | Padrão | O que é |
+|---|---|---|---|
+| `TESTFLIGHT_URL` | **sim** | — | `https://testflight.apple.com/join/CODIGO` |
+| `TERMOS_URL` | não | GitHub Pages do `duka_politica_privacidade` | Termos, Privacidade e Termo de Teste Beta |
+| `SUPORTE_EMAIL` | não | `suporte@dukeapp.com.br` | Destino dos links de suporte |
+| `PORT` | não | `3000` | O Railway injeta sozinho |
+
+### Por que a `TESTFLIGHT_URL` é validada
+
+O servidor só aceita o formato oficial da Apple
+(`^https://testflight\.apple\.com/join/[A-Za-z0-9]{6,12}$`). Se não casar, a
+variável é **ignorada**, a página entra no estado "em breve" e o log avisa.
+
+Isso não é frescura: o botão principal manda o visitante pra onde essa variável
+apontar. Uma variável trocada por engano viraria um redirecionamento aberto
+hospedado no seu domínio. Melhor mostrar "em breve" do que mandar aluno pra
+lugar errado.
+
+## Rodar local
+
+```bash
+TESTFLIGHT_URL="https://testflight.apple.com/join/SEUCODIGO" node server.js
+```
+
+No PowerShell:
+
+```powershell
+$env:TESTFLIGHT_URL="https://testflight.apple.com/join/SEUCODIGO"; node server.js
+```
+
+Abre em `http://localhost:3000`. Para ver o fluxo do iPhone no computador, use o
+modo dispositivo do DevTools com um user agent de iPhone — a detecção é por
+`navigator.userAgent` + `maxTouchPoints`.
+
+## Publicar no Railway
+
+1. `railway link` (ou conectar o repositório do GitHub pelo painel)
+2. No painel → **Variables** → adicionar `TESTFLIGHT_URL`
+3. **Settings → Networking → Generate Domain**
+4. Push na `master` faz deploy sozinho
+
+O `railway.json` já define o healthcheck em `/health`, que responde
+`{"ok":true,"testflight":true|false}` — dá pra saber pelo monitor se o link
+está configurado.
+
+## Onde nasce a `TESTFLIGHT_URL`
+
+App Store Connect → **TestFlight** → seu grupo externo → **Ativar link público**
+→ definir o teto de testadores. A Apple gera o link na hora.
+
+Exige uma build aprovada no **Beta App Review**. Sem isso, o link existe mas
+ninguém consegue instalar.
+
+## Identidade visual
+
+Tokens espelhados de `Path_app/apps/mobile/theme/`: cores do `colors.ts` no
+preset `roxo:vibrante` de `presets.ts`, raio e borda do `clay.ts`, fontes
+Baloo 2 (display) e Nunito (corpo). Logo do elefante inline, vindo do
+`LOGO APP.svg`.
+
+O wordmark "Duka" é **texto em Barlow 500**, não imagem — a mesma fonte que o
+`icons/duka-wordmark-limpo.svg` declara. Assim ele escala, muda de cor e não
+pesa. Se você quiser o PNG vetorizado no lugar, é trocar o `<p class="wordmark">`.
+
+## Manutenção
+
+Builds do TestFlight **expiram em 90 dias**. Quando a última expirar, o link
+público para de aceitar entradas e mostra "este beta não está aceitando
+testadores". Suba uma build nova antes disso.
+
+Quando o app for publicado na App Store, esta página sai de cena — o link vira
+`apps.apple.com`.

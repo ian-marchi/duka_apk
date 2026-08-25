@@ -1,0 +1,14 @@
+{
+  "name": "duka-apple-testflight",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pagina de entrada no teste beta do Duka via TestFlight",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}
