@@ -64,7 +64,17 @@ const SUPORTE_EMAIL = (process.env.SUPORTE_EMAIL || 'suporte@dukeapp.com.br').tr
 /**
  * O APK tem ~102 MB, e o GitHub rejeita qualquer arquivo acima de 100 MB no
  * repositorio. Por isso o caminho normal e o **GitHub Releases** (ate 2 GB por
- * anexo, fora do repositorio): sobe o arquivo la e poe a URL do anexo aqui.
+ * anexo, fora do repositorio).
+ *
+ * A URL a usar e a de "latest", nao a de uma tag fixa:
+ *
+ *   https://github.com/USUARIO/REPO/releases/latest/download/duka.apk
+ *
+ * O GitHub redireciona esse endereco pro anexo com esse nome no release mais
+ * recente. Publicando cada build com o arquivo sempre chamado `duka.apk`, a
+ * URL nunca muda — nao ha o que trocar aqui a cada versao. Duas condicoes:
+ * o nome do anexo tem que se manter igual, e o release nao pode ser draft nem
+ * pre-release (o "latest" ignora os dois).
  *
  * O arquivo local em `duka.apk` continua funcionando como reserva — util pra
  * rodar e testar a pagina na sua maquina sem depender de nada publicado. Em
@@ -94,21 +104,28 @@ if (APK_LOCAL) {
 }
 
 const APK_HREF = APK_URL || (APK_LOCAL ? '/duka.apk' : '')
-const APK_DISPONIVEL = !!APK_HREF
 
 /** Tamanho legivel, pra pessoa saber no que esta se metendo no 4G. */
 function mb(bytes) {
   return (bytes / 1048576).toFixed(0) + ' MB'
 }
 
+// Valores fixados na mao vencem a descoberta automatica.
 let APK_TAMANHO = (process.env.APK_TAMANHO || '').trim()
+let APK_VERSAO = (process.env.APK_VERSAO || '').trim()
+
 if (!APK_TAMANHO && APK_LOCAL) {
   try { APK_TAMANHO = mb(statSync(APK_LOCAL).size) } catch { /* sem tamanho, sem drama */ }
 }
 
-const APK_VERSAO = (process.env.APK_VERSAO || '').trim()
+/**
+ * Comeca otimista: se ha URL configurada, o botao aparece. A sondagem abaixo
+ * so derruba isso diante de um 404 do proprio GitHub — falha de rede no boot
+ * nao pode esconder um download que existe.
+ */
+let apkPublicado = !!APK_HREF
 
-if (!APK_DISPONIVEL) {
+if (!APK_HREF) {
   console.warn('[config] sem APK_URL nem duka.apk — Android vai ver o estado "em breve"')
 }
 
@@ -136,31 +153,91 @@ function montarPagina() {
     .replaceAll('__SUPORTE_EMAIL__', esc(SUPORTE_EMAIL))
     .replaceAll('__CONFIGURADO__', linkValido ? '1' : '0')
     .replaceAll('__APK_URL__', esc(APK_HREF))
-    .replaceAll('__APK_DISPONIVEL__', APK_DISPONIVEL ? '1' : '0')
+    .replaceAll('__APK_DISPONIVEL__', apkPublicado ? '1' : '0')
     .replaceAll('__APK_TAMANHO__', esc(APK_TAMANHO))
     .replaceAll('__APK_VERSAO__', esc(APK_VERSAO))
 }
 
 let PAGINA = montarPagina()
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Sondagem do release: versao e tamanho sem ninguem digitar nada
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Descobre o tamanho do APK remoto com um HEAD, pra pagina poder avisar antes
- * do toque — 102 MB no 4G nao e detalhe. Falhar aqui nao pode derrubar nada:
- * sem tamanho, a pagina so nao mostra o aviso.
+ * Pergunta ao GitHub qual e o release mais recente. Uma chamada devolve as tres
+ * coisas que interessam: a tag (vira a versao mostrada), o tamanho do anexo, e
+ * se o anexo existe.
+ *
+ * E o que faz a pagina se manter sozinha: voce publica um release novo e ela
+ * passa a anunciar a versao e o tamanho certos sem nenhuma variavel mudar.
+ *
+ * Sem token — a API publica permite 60 chamadas por hora por IP, e aqui sao 4
+ * por dia.
  */
-if (APK_URL && !APK_TAMANHO) {
-  const corte = AbortSignal.timeout(5000)
-  fetch(APK_URL, { method: 'HEAD', redirect: 'follow', signal: corte })
-    .then((r) => {
+async function sondarRelease() {
+  const m = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/releases\//.exec(APK_URL)
+  if (!m) return null
+
+  const arquivo = APK_URL.split('/').pop()
+  const r = await fetch(`https://api.github.com/repos/${m[1]}/${m[2]}/releases/latest`, {
+    headers: { accept: 'application/vnd.github+json', 'user-agent': 'duka-beta' },
+    signal: AbortSignal.timeout(6000),
+  })
+
+  // 404 aqui e resposta, nao falha: o repositorio nao tem nenhum release
+  // publicado (ou so tem draft/pre-release, que o "latest" ignora).
+  if (r.status === 404) return { vazio: true }
+  if (!r.ok) throw new Error(`GitHub respondeu ${r.status}`)
+
+  const j = await r.json()
+  const anexo = (j.assets || []).find((a) => a.name === arquivo)
+  return { tag: j.tag_name, tamanho: anexo?.size, semAnexo: !anexo }
+}
+
+async function atualizarRelease() {
+  if (!APK_URL) return
+  try {
+    const info = await sondarRelease()
+
+    // Nao e GitHub: cai no HEAD, que ao menos da o tamanho.
+    if (!info) {
+      const r = await fetch(APK_URL, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(6000) })
       const n = Number(r.headers.get('content-length'))
-      if (r.ok && n > 0) {
+      if (r.ok && n > 0 && !process.env.APK_TAMANHO) {
         APK_TAMANHO = mb(n)
         PAGINA = montarPagina()
-        console.log(`[config] APK remoto tem ${APK_TAMANHO}`)
       }
-    })
-    .catch((e) => console.warn(`[config] nao deu pra medir o APK remoto: ${e.message}`))
+      return
+    }
+
+    if (info.vazio || info.semAnexo) {
+      apkPublicado = false
+      PAGINA = montarPagina()
+      console.warn(
+        info.vazio
+          ? '[release] nenhum release publicado — Android vai ver "em breve"'
+          : `[release] o release mais recente nao tem o anexo ${APK_URL.split('/').pop()} — Android vai ver "em breve"`
+      )
+      return
+    }
+
+    apkPublicado = true
+    if (!process.env.APK_VERSAO && info.tag) APK_VERSAO = String(info.tag).replace(/^v/, '')
+    if (!process.env.APK_TAMANHO && info.tamanho) APK_TAMANHO = mb(info.tamanho)
+    PAGINA = montarPagina()
+    console.log(`[release] ${info.tag || 'sem tag'} · ${APK_TAMANHO || 'tamanho desconhecido'}`)
+  } catch (e) {
+    // Rede ruim nao pode esconder um download que existe: mantem como esta.
+    console.warn(`[release] sondagem falhou, mantendo a configuracao atual: ${e.message}`)
+  }
 }
+
+atualizarRelease()
+
+// Um release novo publicado sem redeploy do site ainda assim aparece aqui.
+// `unref` pra este timer nunca segurar o processo de pe.
+setInterval(atualizarRelease, 6 * 60 * 60 * 1000).unref()
 
 const TIPOS = {
   '.html': 'text/html; charset=utf-8',
@@ -182,7 +259,7 @@ const servidor = createServer((req, res) => {
 
   if (caminho === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    return res.end(JSON.stringify({ ok: true, testflight: linkValido, apk: APK_DISPONIVEL }))
+    return res.end(JSON.stringify({ ok: true, testflight: linkValido, apk: apkPublicado }))
   }
 
   // ── APK local ────────────────────────────────────────────────────────────
@@ -258,6 +335,6 @@ servidor.listen(PORTA, '0.0.0.0', () => {
   console.log(
     `[duka-beta] no ar na porta ${PORTA} — ` +
     `TestFlight ${linkValido ? 'configurado' : 'PENDENTE'}, ` +
-    `APK ${APK_DISPONIVEL ? (APK_URL ? 'remoto' : 'local') : 'PENDENTE'}`
+    `APK ${apkPublicado ? (APK_URL ? 'remoto' : 'local') : 'PENDENTE'}`
   )
 })

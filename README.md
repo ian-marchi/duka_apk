@@ -34,8 +34,8 @@ de copiar, pro caso do link não abrir o TestFlight sozinho — aí é
 | `APK_URL` | **sim, para Android** | — | URL https do APK (GitHub Releases) |
 | `TERMOS_URL` | não | GitHub Pages do `duka_politica_privacidade` | Termos, Privacidade e Termo de Teste Beta |
 | `SUPORTE_EMAIL` | não | `suporte@dukeapp.com.br` | Destino dos links de suporte |
-| `APK_VERSAO` | não | — | Aparece embaixo do botão de download |
-| `APK_TAMANHO` | não | descoberto por HEAD | Só para fixar o texto na mão |
+| `APK_VERSAO` | não | tag do release | Só para fixar o texto na mão |
+| `APK_TAMANHO` | não | tamanho do anexo | Só para fixar o texto na mão |
 | `PORT` | não | `3000` | O Railway injeta sozinho |
 
 ### Por que a `TESTFLIGHT_URL` é validada
@@ -59,18 +59,48 @@ O lugar dele é o **GitHub Releases**: até 2 GB por anexo, fora do repositório
 sem inflar o histórico e sem passar pelo Railway.
 
 ```bash
-gh release create v1.2.4 duka.apk --title "Duka 1.2.4 (Android)" --notes "Build de teste"
+gh release create v1.2.4 duka.apk --repo ian-marchi/duka_testes --title "Duka 1.2.4 (Android)" --notes "Build de teste"
 ```
 
 Ou pelo site: **Releases → Draft a new release → Attach binaries**.
 
-Depois copie a URL do anexo — no formato
-`https://github.com/USUARIO/REPO/releases/download/v1.2.4/duka.apk` — e ponha em
-`APK_URL` no Railway.
-
+> **O repositório precisa ser público.** Anexo de release em repo privado não
+> baixa sem login — o botão daria erro para todo mundo que não é você.
+>
 > **Git LFS não serve aqui.** Ele aceitaria o arquivo, mas a cota gratuita do
 > GitHub é 1 GB de banda por mês: dez downloads de 102 MB e o botão para de
 > funcionar até o mês virar.
+
+### A `APK_URL` se configura uma vez só
+
+Use a URL de **`latest`**, não a de uma tag fixa:
+
+```
+https://github.com/ian-marchi/duka_testes/releases/latest/download/duka.apk
+```
+
+O GitHub redireciona esse endereço para o anexo com esse nome no release mais
+recente. Publicar uma versão nova **não exige mexer em nada aqui** — só duas
+condições:
+
+- o anexo tem que continuar se chamando `duka.apk`
+- o release não pode ser *draft* nem *pre-release* (o "latest" ignora os dois)
+
+Ou seja, o ciclo de atualização inteiro é:
+
+```bash
+gh release create v1.2.5 duka.apk --repo ian-marchi/duka_testes --title "Duka 1.2.5 (Android)" --notes "..."
+```
+
+E acabou. A página passa a servir o arquivo novo, e a **versão e o tamanho
+exibidos se atualizam sozinhos**: o servidor consulta a API pública do GitHub no
+boot e a cada 6 horas, lê a `tag_name` e o tamanho do anexo. Nenhuma variável
+muda de mão em mão.
+
+Se a sondagem encontrar o repositório sem nenhum release publicado, ou um
+release sem o anexo esperado, o Android vê **"a versão Android sai em breve"** em
+vez de um botão que dá erro. Falha de rede não derruba nada — nesse caso a
+configuração atual é mantida.
 
 ### Arquivo local (só desenvolvimento)
 
