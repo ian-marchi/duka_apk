@@ -7,3 +7,8 @@ AuthKey_*.p8
 .DS_Store
 Thumbs.db
 *.log
+
+# APK de ~102 MB: passa do limite de 100 MB por arquivo do GitHub e o push seria
+# rejeitado. Ele vive no GitHub Releases (ate 2 GB) e a pagina aponta pra la
+# pela APK_URL. O arquivo local so serve pra testar na maquina.
+*.apk

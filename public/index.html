@@ -269,6 +269,35 @@ body {
 }
 .aviso strong { color: var(--warn); font-weight: 700; }
 
+/* Variante neutra: explica em vez de alertar. */
+.aviso.calmo {
+  background: rgba(172, 83, 213, .07);
+  border-color: rgba(172, 83, 213, .22);
+}
+.aviso.calmo strong { color: var(--primary-hover); }
+
+/* Selo de tamanho/versao no botao de download */
+.meta {
+  display: block;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 9px;
+}
+
+/* Falas do proprio Android, citadas pra pessoa reconhecer na tela */
+.fala {
+  display: block;
+  margin: 7px 0 0;
+  padding: 8px 11px;
+  background: rgba(13, 10, 20, .55);
+  border-left: 3px solid var(--border);
+  border-radius: 0 10px 10px 0;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* ── Estados alternativos ─────────────────────────────────── */
 .estado { text-align: center; padding: 12px 0 4px; }
 .estado .icone {
@@ -372,7 +401,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
   </svg>
 
   <p class="wordmark">Duka</p>
-  <span class="selo">Beta fechado &middot; iPhone</span>
+  <span class="selo">Beta fechado &middot; iPhone e Android</span>
 
   <!-- ══════════════════════════════════════════════════════════
        iOS — o caminho principal
@@ -446,8 +475,8 @@ footer .sep { opacity: .4; margin: 0 8px; }
         <rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/>
       </svg>
     </div>
-    <h2>Abra no seu iPhone</h2>
-    <p>O teste do Duka roda pelo TestFlight, que so existe no iPhone. Copie o endereco abaixo e abra no Safari do celular.</p>
+    <h2>Abra no seu celular</h2>
+    <p>O Duka se instala no aparelho, entao esta pagina precisa ser aberta nele. Copie o endereco abaixo e abra no navegador do celular — ela reconhece se e iPhone ou Android e mostra o caminho certo.</p>
     <div class="codigo-bloco" style="text-align:left">
       <p class="rotulo">Endereco desta pagina</p>
       <div class="codigo-linha">
@@ -460,17 +489,86 @@ footer .sep { opacity: .4; margin: 0 8px; }
   <!-- ══════════════════════════════════════════════════════════
        Android — build separada
        ══════════════════════════════════════════════════════════ -->
-  <div id="android" class="estado" hidden>
-    <div class="icone">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 2v4"/><circle cx="12" cy="14" r="8"/><path d="M8 6 6 3"/><path d="m16 6 2-3"/>
-      </svg>
+  <div id="android" hidden>
+
+    <!-- APK disponivel: download + como instalar -->
+    <div id="android-ok" hidden>
+      <p class="intro">No Android o Duka vem por download direto, fora da Play Store. Sao quatro passos.</p>
+
+      <ol class="passos">
+
+        <li class="passo">
+          <span class="n">1</span>
+          <div>
+            <h2>Baixe o arquivo</h2>
+            <p>O download comeca na hora e fica na sua pasta de downloads.</p>
+            <div class="acao">
+              <a class="btn btn-primary" id="btn-apk" href="__APK_URL__" download="duka.apk" rel="noopener">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Baixar o Duka
+              </a>
+              <span class="meta" id="apk-meta" hidden></span>
+            </div>
+          </div>
+        </li>
+
+        <li class="passo">
+          <span class="n">2</span>
+          <div>
+            <h2>Abra o arquivo baixado</h2>
+            <p>Toque na notificacao de download concluido. Se ela sumir, abra o app <strong>Arquivos</strong> e procure em <strong>Downloads</strong>.</p>
+          </div>
+        </li>
+
+        <li class="passo">
+          <span class="n">3</span>
+          <div>
+            <h2>Libere a instalacao</h2>
+            <p>O Android vai barrar na primeira vez, com uma mensagem parecida com esta:</p>
+            <span class="fala">Por seguranca, seu telefone nao pode instalar apps desconhecidos desta fonte.</span>
+            <p style="margin-top:9px">Toque em <strong>Configuracoes</strong>, ligue <strong>Permitir desta fonte</strong> e volte com o botao de voltar.</p>
+          </div>
+        </li>
+
+        <li class="passo">
+          <span class="n">4</span>
+          <div>
+            <h2>Instale</h2>
+            <p>Toque em <strong>Instalar</strong>. Se o Play Protect avisar que nao reconhece o app, toque em <strong>Instalar assim mesmo</strong> — ele diz isso de qualquer app que nao venha da Play Store.</p>
+          </div>
+        </li>
+
+      </ol>
+
+      <div class="aviso calmo">
+        <strong>Por que tanto aviso?</strong> O Duka ainda nao esta na Play Store, entao o Android trata o arquivo como fonte desconhecida. Os alertas sao normais nesse caminho e nao indicam problema no app.
+      </div>
+
+      <div class="aviso">
+        <strong>Desligue a permissao depois.</strong> Terminada a instalacao, volte em Configuracoes e desative o <em>Permitir desta fonte</em> para o navegador. Ela vale para qualquer arquivo que voce baixar dali — deixar ligada e o que transforma um download qualquer num app instalado.
+      </div>
+
+      <div class="aviso calmo" style="margin-top:14px">
+        <strong>E uma versao de testes.</strong> Pode apresentar instabilidades e mudar sem aviso. Achou algo estranho? Escreva para o suporte — e pra isso que voce esta aqui.
+      </div>
     </div>
-    <h2>A versao Android vem por outro caminho</h2>
-    <p>O TestFlight e exclusivo da Apple. O teste no Android e distribuido separadamente — fale com o suporte que a gente te manda o acesso.</p>
-    <div class="acao">
-      <a class="btn btn-soft" id="btn-suporte-android" href="#">Falar com o suporte</a>
+
+    <!-- Sem APK configurado -->
+    <div id="android-breve" class="estado" hidden>
+      <div class="icone">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2v4"/><circle cx="12" cy="14" r="8"/><path d="M8 6 6 3"/><path d="m16 6 2-3"/>
+        </svg>
+      </div>
+      <h2>A versao Android sai em breve</h2>
+      <p>O arquivo de instalacao esta sendo preparado. Fale com o suporte que a gente avisa assim que estiver pronto.</p>
+      <div class="acao">
+        <a class="btn btn-soft" id="btn-suporte-android" href="#">Falar com o suporte</a>
+      </div>
     </div>
+
   </div>
 
   <!-- ══════════════════════════════════════════════════════════
@@ -506,6 +604,9 @@ footer .sep { opacity: .4; margin: 0 8px; }
   'use strict'
 
   var CONFIGURADO = '__CONFIGURADO__' === '1'
+  var APK_DISPONIVEL = '__APK_DISPONIVEL__' === '1'
+  var APK_TAMANHO = '__APK_TAMANHO__'
+  var APK_VERSAO = '__APK_VERSAO__'
   var EMAIL = '__SUPORTE_EMAIL__'
 
   // Liga os links de suporte sem deixar o endereco cru no HTML.
@@ -527,13 +628,31 @@ footer .sep { opacity: .4; margin: 0 8px; }
     return /Android/i.test(navigator.userAgent || '')
   }
 
-  var alvo = !CONFIGURADO ? 'indisponivel'
-           : ehApple()    ? 'ios'
-           : ehAndroid()  ? 'android'
-           :                'desktop'
+  /**
+   * O estado do TestFlight so manda no caminho da Apple. Antes ele decidia
+   * sozinho, e um visitante de Android via "vagas em breve" mesmo com o APK
+   * pronto pra baixar — sao duas distribuicoes independentes.
+   */
+  var alvo = ehApple()   ? (CONFIGURADO ? 'ios' : 'indisponivel')
+           : ehAndroid() ? 'android'
+           :               'desktop'
 
   var bloco = document.getElementById(alvo)
   if (bloco) bloco.hidden = false
+
+  if (alvo === 'android') {
+    document.getElementById(APK_DISPONIVEL ? 'android-ok' : 'android-breve').hidden = false
+
+    // Tamanho e versao so aparecem quando o servidor conseguiu descobrir.
+    var partes = []
+    if (APK_VERSAO) partes.push('versao ' + APK_VERSAO)
+    if (APK_TAMANHO) partes.push(APK_TAMANHO)
+    if (partes.length) {
+      var meta = document.getElementById('apk-meta')
+      meta.textContent = partes.join(' · ') + (APK_TAMANHO ? ' — prefira o Wi-Fi' : '')
+      meta.hidden = false
+    }
+  }
 
   // Endereco desta pagina, pro visitante de computador levar pro celular.
   var campoUrl = document.getElementById('url-site')

@@ -14,9 +14,13 @@ O visitante cai na página e vê o caminho certo pro aparelho dele:
 | Situação | O que aparece |
 |---|---|
 | iPhone / iPad | Os 3 passos: instalar TestFlight → entrar no teste → instalar |
-| Computador | "Abra no seu iPhone" + endereço para copiar |
-| Android | Aviso de que o teste Android vem por outro caminho + suporte |
-| `TESTFLIGHT_URL` ausente ou inválida | "As vagas abrem em breve" |
+| Android | Download do APK + os 4 passos de instalação fora da Play Store |
+| Computador | "Abra no seu celular" + endereço para copiar |
+| `TESTFLIGHT_URL` ausente no iPhone | "As vagas abrem em breve" |
+| Sem APK no Android | "A versão Android sai em breve" + suporte |
+
+As duas distribuições são **independentes**: TestFlight pendente não impede o
+download do Android, e vice-versa.
 
 O código de resgate (os 8 caracteres finais do link) aparece na tela com botão
 de copiar, pro caso do link não abrir o TestFlight sozinho — aí é
@@ -27,8 +31,11 @@ de copiar, pro caso do link não abrir o TestFlight sozinho — aí é
 | Variável | Obrigatória | Padrão | O que é |
 |---|---|---|---|
 | `TESTFLIGHT_URL` | **sim** | — | `https://testflight.apple.com/join/CODIGO` |
+| `APK_URL` | **sim, para Android** | — | URL https do APK (GitHub Releases) |
 | `TERMOS_URL` | não | GitHub Pages do `duka_politica_privacidade` | Termos, Privacidade e Termo de Teste Beta |
 | `SUPORTE_EMAIL` | não | `suporte@dukeapp.com.br` | Destino dos links de suporte |
+| `APK_VERSAO` | não | — | Aparece embaixo do botão de download |
+| `APK_TAMANHO` | não | descoberto por HEAD | Só para fixar o texto na mão |
 | `PORT` | não | `3000` | O Railway injeta sozinho |
 
 ### Por que a `TESTFLIGHT_URL` é validada
@@ -41,6 +48,40 @@ Isso não é frescura: o botão principal manda o visitante pra onde essa variá
 apontar. Uma variável trocada por engano viraria um redirecionamento aberto
 hospedado no seu domínio. Melhor mostrar "em breve" do que mandar aluno pra
 lugar errado.
+
+## O APK não pode ir no repositório
+
+`duka.apk` tem **102,1 MB**. O GitHub rejeita qualquer arquivo acima de
+**100 MB** — `git push` falha, e o upload pela interface web para em 25 MB. Por
+isso o `.gitignore` exclui `*.apk`.
+
+O lugar dele é o **GitHub Releases**: até 2 GB por anexo, fora do repositório,
+sem inflar o histórico e sem passar pelo Railway.
+
+```bash
+gh release create v1.2.4 duka.apk --title "Duka 1.2.4 (Android)" --notes "Build de teste"
+```
+
+Ou pelo site: **Releases → Draft a new release → Attach binaries**.
+
+Depois copie a URL do anexo — no formato
+`https://github.com/USUARIO/REPO/releases/download/v1.2.4/duka.apk` — e ponha em
+`APK_URL` no Railway.
+
+> **Git LFS não serve aqui.** Ele aceitaria o arquivo, mas a cota gratuita do
+> GitHub é 1 GB de banda por mês: dez downloads de 102 MB e o botão para de
+> funcionar até o mês virar.
+
+### Arquivo local (só desenvolvimento)
+
+Se existir `duka.apk` na raiz (ou em `public/`) e `APK_URL` não estiver
+definida, o servidor serve o arquivo em `/duka.apk` — com o MIME
+`application/vnd.android.package-archive` (sem ele o Android não oferece
+instalar), `Content-Disposition: attachment`, streaming e suporte a `Range`
+para retomar download caído.
+
+Em produção prefira sempre a `APK_URL`: com o arquivo local, cada deploy
+carregaria 102 MB de imagem e todo download sairia da banda do Railway.
 
 ## Rodar local
 
