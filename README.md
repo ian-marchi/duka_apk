@@ -52,14 +52,15 @@ lugar errado.
 ## O APK não pode ir no repositório
 
 `duka.apk` tem **102,1 MB**. O GitHub rejeita qualquer arquivo acima de
-**100 MB** — `git push` falha, e o upload pela interface web para em 25 MB. Por
-isso o `.gitignore` exclui `*.apk`.
+**100 MB** dentro do repositório — `git push` falha, e o upload de arquivo pela
+interface web para em 25 MB. Por isso o `.gitignore` exclui `*.apk`.
 
-O lugar dele é o **GitHub Releases**: até 2 GB por anexo, fora do repositório,
-sem inflar o histórico e sem passar pelo Railway.
+O lugar dele é o **GitHub Releases**, que é outra coisa: anexo de release aceita
+até **2 GB**, inclusive pelo navegador (arrastando o arquivo). Fica fora do
+repositório, não infla o histórico e não passa pelo Railway.
 
 ```bash
-gh release create v1.2.4 duka.apk --repo ian-marchi/duka_testes --title "Duka 1.2.4 (Android)" --notes "Build de teste"
+gh release create v1.2.4 duka.apk --repo ian-marchi/duka_apk --title "Duka 1.2.4 (Android)" --notes "Build de teste"
 ```
 
 Ou pelo site: **Releases → Draft a new release → Attach binaries**.
@@ -76,7 +77,7 @@ Ou pelo site: **Releases → Draft a new release → Attach binaries**.
 Use a URL de **`latest`**, não a de uma tag fixa:
 
 ```
-https://github.com/ian-marchi/duka_testes/releases/latest/download/duka.apk
+https://github.com/ian-marchi/duka_apk/releases/latest/download/duka.apk
 ```
 
 O GitHub redireciona esse endereço para o anexo com esse nome no release mais
@@ -89,7 +90,7 @@ condições:
 Ou seja, o ciclo de atualização inteiro é:
 
 ```bash
-gh release create v1.2.5 duka.apk --repo ian-marchi/duka_testes --title "Duka 1.2.5 (Android)" --notes "..."
+gh release create v1.2.5 duka.apk --repo ian-marchi/duka_apk --title "Duka 1.2.5 (Android)" --notes "..."
 ```
 
 E acabou. A página passa a servir o arquivo novo, e a **versão e o tamanho
@@ -131,14 +132,14 @@ modo dispositivo do DevTools com um user agent de iPhone — a detecção é por
 
 ## Publicar no Railway
 
-1. `railway link` (ou conectar o repositório do GitHub pelo painel)
-2. No painel → **Variables** → adicionar `TESTFLIGHT_URL`
+1. `railway link` (ou conectar `ian-marchi/duka_apk` pelo painel)
+2. No painel → **Variables** → adicionar `TESTFLIGHT_URL` e `APK_URL`
 3. **Settings → Networking → Generate Domain**
-4. Push na `master` faz deploy sozinho
+4. Push na `main` faz deploy sozinho
 
 O `railway.json` já define o healthcheck em `/health`, que responde
-`{"ok":true,"testflight":true|false}` — dá pra saber pelo monitor se o link
-está configurado.
+`{"ok":true,"testflight":true|false,"apk":true|false}` — dá pra saber pelo
+monitor se o link e o APK estão de pé, sem abrir a página.
 
 ## Onde nasce a `TESTFLIGHT_URL`
 
