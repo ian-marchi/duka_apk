@@ -95,7 +95,7 @@ gh release create v1.2.5 duka.apk --repo ian-marchi/duka_apk --title "Duka 1.2.5
 
 E acabou. A página passa a servir o arquivo novo, e a **versão e o tamanho
 exibidos se atualizam sozinhos**: o servidor consulta a API pública do GitHub no
-boot e a cada 6 horas, lê a `tag_name` e o tamanho do anexo. Nenhuma variável
+boot e periodicamente, lê a `tag_name` e o tamanho do anexo. Nenhuma variável
 muda de mão em mão.
 
 Se a sondagem encontrar o repositório sem nenhum release publicado, ou um

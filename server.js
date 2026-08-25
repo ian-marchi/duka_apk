@@ -233,11 +233,25 @@ async function atualizarRelease() {
   }
 }
 
-atualizarRelease()
+/**
+ * Reconsulta sozinho, com ritmo que segue o estado.
+ *
+ * Enquanto nao ha release publicado, pergunta de 10 em 10 minutos: e o dia em
+ * que voce sobe o APK, e esperar seis horas pro botao aparecer seria ridiculo.
+ * Depois que existe, cai pra 6 horas — so precisa notar troca de versao.
+ *
+ * `unref` pro timer nunca segurar o processo de pe.
+ */
+const ESPERANDO_RELEASE = 10 * 60 * 1000
+const JA_PUBLICADO = 6 * 60 * 60 * 1000
 
-// Um release novo publicado sem redeploy do site ainda assim aparece aqui.
-// `unref` pra este timer nunca segurar o processo de pe.
-setInterval(atualizarRelease, 6 * 60 * 60 * 1000).unref()
+async function cicloDeSondagem() {
+  await atualizarRelease()
+  if (!APK_URL) return
+  setTimeout(cicloDeSondagem, apkPublicado ? JA_PUBLICADO : ESPERANDO_RELEASE).unref()
+}
+
+cicloDeSondagem()
 
 const TIPOS = {
   '.html': 'text/html; charset=utf-8',
