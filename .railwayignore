@@ -1,0 +1,12 @@
+# O `railway up` envia a pasta local. Sem esta regra, os 102 MB do duka.apk
+# subiriam a cada deploy — e sem necessidade nenhuma: em producao o APK vem do
+# GitHub Releases pela APK_URL, nao do container.
+*.apk
+
+.env
+.env.*
+!.env.example
+*.p8
+AuthKey_*.p8
+node_modules/
+*.log
