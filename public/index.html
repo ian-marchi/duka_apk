@@ -4,18 +4,36 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Duka — Entre no teste beta</title>
-<meta name="description" content="Participe da versao de testes do Duka, o app de estudos para o ENEM e vestibulares. Instalacao pelo TestFlight, em tres passos." />
+<meta name="description" content="Participe da versão de testes do Duka, o app de estudos para o ENEM e vestibulares. Disponível para iPhone e Android." />
 <meta name="theme-color" content="#0D0A14" />
 <meta name="robots" content="noindex" />
 
 <link rel="icon" href="./favicon.png" />
 <link rel="apple-touch-icon" href="./icon.png" />
 
+<!--
+  Previa de compartilhamento.
+
+  og:image PRECISA ser absoluta. Com o caminho relativo que estava aqui antes
+  ("./icon.png"), WhatsApp, Telegram e companhia simplesmente nao mostravam
+  imagem: eles buscam a URL como veio, de fora do site, e "./icon.png" nao
+  significa nada pra quem esta fora. Por isso o servidor injeta a origem.
+-->
 <meta property="og:type" content="website" />
-<meta property="og:title" content="Duka — teste beta para iPhone" />
-<meta property="og:description" content="Entre no teste do Duka pelo TestFlight e comece a estudar pro vestibular dos sonhos." />
-<meta property="og:image" content="./icon.png" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:site_name" content="Duka" />
+<meta property="og:locale" content="pt_BR" />
+<meta property="og:title" content="Duka — entre no teste beta" />
+<meta property="og:description" content="Teste o Duka no iPhone ou no Android e estude pro vestibular com questões, simulados e um plano só seu." />
+<meta property="og:url" content="__SITE_URL__/" />
+<meta property="og:image" content="__SITE_URL__/og.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Duka — teste beta aberto" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Duka — entre no teste beta" />
+<meta name="twitter:description" content="Teste o Duka no iPhone ou no Android e estude pro vestibular com questões, simulados e um plano só seu." />
+<meta name="twitter:image" content="__SITE_URL__/og.png" />
 
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -298,6 +316,25 @@ body {
   font-style: italic;
 }
 
+/* ── QR do computador ─────────────────────────────────────── */
+.qr {
+  width: 208px;
+  margin: 22px auto 0;
+  padding: 12px;
+  background: #fff;                /* o leitor precisa do contraste claro */
+  border-radius: 18px;
+  border-bottom: var(--edge) solid #C9BEDC;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .45);
+  line-height: 0;                  /* mata o vao que o SVG inline deixaria */
+}
+.qr svg { width: 100%; height: auto; display: block; }
+
+.qr-legenda {
+  margin-top: 12px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
 /* ── Estados alternativos ─────────────────────────────────── */
 .estado { text-align: center; padding: 12px 0 4px; }
 .estado .icone {
@@ -476,8 +513,13 @@ footer .sep { opacity: .4; margin: 0 8px; }
       </svg>
     </div>
     <h2>Abra no seu celular</h2>
-    <p>O Duka se instala no aparelho, entao esta pagina precisa ser aberta nele. Copie o endereco abaixo e abra no navegador do celular — ela reconhece se e iPhone ou Android e mostra o caminho certo.</p>
-    <div class="codigo-bloco" style="text-align:left">
+    <p>O Duka se instala no aparelho, entao esta pagina precisa ser aberta nele. Ela reconhece se e iPhone ou Android e mostra o caminho certo.</p>
+
+    <div class="qr" id="qr"></div>
+    <p class="qr-legenda">Aponte a camera do celular para o codigo</p>
+
+    <!-- Se o QR nao puder ser desenhado, ao menos o endereco fica a mao. -->
+    <div class="codigo-bloco" id="qr-reserva" hidden style="text-align:left">
       <p class="rotulo">Endereco desta pagina</p>
       <div class="codigo-linha">
         <span class="codigo" id="url-site" style="font-size:14px;letter-spacing:0"></span>
@@ -599,6 +641,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
   Idade minima de 15 anos. &copy; 2026 Duka
 </footer>
 
+<script src="./qr.js"></script>
 <script>
 (function () {
   'use strict'
@@ -654,9 +697,28 @@ footer .sep { opacity: .4; margin: 0 8px; }
     }
   }
 
-  // Endereco desta pagina, pro visitante de computador levar pro celular.
-  var campoUrl = document.getElementById('url-site')
-  if (campoUrl) campoUrl.textContent = location.origin + location.pathname
+  // ── Computador: QR pra levar a pagina ate o celular ────────────────────
+  // Um toque de camera resolve o que copiar-e-colar entre dois aparelhos nao
+  // resolve bem. Se por algum motivo o QR nao sair, o endereco em texto volta
+  // a aparecer — a pessoa nao pode ficar sem saida.
+  if (alvo === 'desktop') {
+    var endereco = location.origin + location.pathname
+    var desenho = null
+    try {
+      if (window.DukaQR) desenho = window.DukaQR.svg(endereco, { escuro: '#17102A' })
+    } catch (e) {
+      desenho = null
+    }
+
+    if (desenho) {
+      document.getElementById('qr').innerHTML = desenho
+    } else {
+      document.querySelector('.qr').hidden = true
+      document.querySelector('.qr-legenda').hidden = true
+      document.getElementById('qr-reserva').hidden = false
+      document.getElementById('url-site').textContent = endereco
+    }
+  }
 
   /** Copia texto e confirma no proprio botao. */
   function ligarCopia(idBotao, idTexto) {

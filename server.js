@@ -54,6 +54,27 @@ const TESTFLIGHT_URL = linkValido ? bruto : ''
 // (TestFlight > Resgatar) quando o link nao abre o app sozinho.
 const TESTFLIGHT_CODE = linkValido ? TESTFLIGHT_URL.split('/').pop() : ''
 
+/**
+ * Origem publica do site, usada nas meta tags de previa (Open Graph).
+ *
+ * O `og:image` tem que ser uma URL ABSOLUTA: quem monta a previa (WhatsApp,
+ * Telegram, iMessage) busca o endereco de fora do site, e um caminho relativo
+ * nao quer dizer nada nesse contexto — era por isso que o link aparecia sem
+ * imagem nenhuma.
+ *
+ * O Railway injeta RAILWAY_PUBLIC_DOMAIN sozinho assim que existe um dominio,
+ * entao no ar isto se resolve sem ninguem configurar nada. SITE_URL manda
+ * quando existe, pro dia do dominio proprio.
+ */
+const SITE_URL = (
+  process.env.SITE_URL ||
+  (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '')
+).trim().replace(/\/+$/, '')
+
+if (!SITE_URL) {
+  console.warn('[config] sem SITE_URL nem RAILWAY_PUBLIC_DOMAIN — o link compartilhado vai sair sem imagem')
+}
+
 const TERMOS_URL = (process.env.TERMOS_URL || 'https://ian-marchi.github.io/duka_politica_privacidade/').trim()
 const SUPORTE_EMAIL = (process.env.SUPORTE_EMAIL || 'suporte@dukeapp.com.br').trim()
 
@@ -149,6 +170,7 @@ function montarPagina() {
   return MOLDE
     .replaceAll('__TESTFLIGHT_URL__', esc(TESTFLIGHT_URL))
     .replaceAll('__TESTFLIGHT_CODE__', esc(TESTFLIGHT_CODE))
+    .replaceAll('__SITE_URL__', esc(SITE_URL))
     .replaceAll('__TERMOS_URL__', esc(TERMOS_URL))
     .replaceAll('__SUPORTE_EMAIL__', esc(SUPORTE_EMAIL))
     .replaceAll('__CONFIGURADO__', linkValido ? '1' : '0')
@@ -260,6 +282,12 @@ const TIPOS = {
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
   '.apk': 'application/vnd.android.package-archive',
+  // Sem esta linha o qr.js sairia como application/octet-stream e o navegador
+  // se recusaria a executa-lo, por causa do X-Content-Type-Options: nosniff
+  // logo abaixo. A pagina carregaria inteira, sem QR e sem erro visivel.
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
 }
 
 const SEGURANCA = {

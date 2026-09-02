@@ -15,7 +15,7 @@ O visitante cai na página e vê o caminho certo pro aparelho dele:
 |---|---|
 | iPhone / iPad | Os 3 passos: instalar TestFlight → entrar no teste → instalar |
 | Android | Download do APK + os 4 passos de instalação fora da Play Store |
-| Computador | "Abra no seu celular" + endereço para copiar |
+| Computador | "Abra no seu celular" + QR Code para apontar a câmera |
 | `TESTFLIGHT_URL` ausente no iPhone | "As vagas abrem em breve" |
 | Sem APK no Android | "A versão Android sai em breve" + suporte |
 
@@ -32,6 +32,7 @@ de copiar, pro caso do link não abrir o TestFlight sozinho — aí é
 |---|---|---|---|
 | `TESTFLIGHT_URL` | **sim** | — | `https://testflight.apple.com/join/CODIGO` |
 | `APK_URL` | **sim, para Android** | — | URL https do APK (GitHub Releases) |
+| `SITE_URL` | não | `RAILWAY_PUBLIC_DOMAIN` | Origem pública, usada nas meta tags de prévia |
 | `TERMOS_URL` | não | GitHub Pages do `duka_politica_privacidade` | Termos, Privacidade e Termo de Teste Beta |
 | `SUPORTE_EMAIL` | não | `suporte@dukeapp.com.br` | Destino dos links de suporte |
 | `APK_VERSAO` | não | tag do release | Só para fixar o texto na mão |
@@ -148,6 +149,56 @@ App Store Connect → **TestFlight** → seu grupo externo → **Ativar link pú
 
 Exige uma build aprovada no **Beta App Review**. Sem isso, o link existe mas
 ninguém consegue instalar.
+
+## QR Code
+
+O visitante de computador vê um QR em vez de um endereço para copiar — apontar a
+câmera resolve melhor a passagem de um aparelho para o outro.
+
+O gerador é `public/qr.js`, **escrito à mão**: um `<script>` de CDN seria um
+terceiro entre o visitante e a instalação do app, numa página que existe
+justamente para ser confiável nesse momento. Modo byte, correção de erro nível
+M, versões 1 a 6 (até 106 bytes — mais do que qualquer URL daqui). Acima disso
+`gerar()` devolve `null` e a página mostra o endereço em texto.
+
+O teto na versão 6 é proposital: da versão 7 em diante entram os blocos de
+"informação de versão", mais tabela e mais superfície para errar.
+
+### Conferir o QR
+
+```bash
+pip install opencv-python-headless numpy
+python scripts/conferir-qr.py
+```
+
+Um QR errado não avisa — ele só não escaneia. A conferência é de ponta a ponta:
+gera, desenha e manda um leitor de verdade (o detector do OpenCV) ler de volta,
+tanto da matriz quanto do **SVG que a página realmente desenha**. É no `svg()`
+que os módulos viram coordenadas, e é o desenho que a câmera enxerga.
+
+> Comparar a matriz com outra biblioteca foi a primeira tentativa e se mostrou
+> pior: o segno enche o final com um byte a mais de zeros e escolhe modo
+> alfanumérico quando dá. São escolhas legítimas e diferentes das minhas, que
+> fazem a matriz divergir sem que nada esteja errado. Decodificar não tem essa
+> ambiguidade.
+
+## Prévia de compartilhamento
+
+`public/og.png` (1200×630) é o que aparece quando o link é colado no WhatsApp,
+Telegram ou iMessage. Refazer:
+
+```bash
+python scripts/gerar-og.py
+```
+
+O script monta a imagem a partir das fontes de verdade do projeto — ícone do
+app, wordmark e as fontes Baloo 2 / Nunito do `node_modules` do mobile — em vez
+de deixar um PNG solto que ninguém sabe como foi feito.
+
+> **`og:image` precisa ser URL absoluta.** Com o caminho relativo que estava lá
+> no começo (`./icon.png`), o WhatsApp simplesmente não mostrava imagem: ele
+> busca o endereço de fora do site, e `./icon.png` não significa nada nesse
+> contexto. Por isso o servidor injeta a origem via `SITE_URL`.
 
 ## Identidade visual
 
