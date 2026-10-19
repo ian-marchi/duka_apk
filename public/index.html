@@ -537,6 +537,16 @@ footer .sep { opacity: .4; margin: 0 8px; }
     <div id="android-ok" hidden>
       <p class="intro">No Android o Duka vem por download direto, fora da Play Store. Sao quatro passos.</p>
 
+      <!-- Navegador embutido (WhatsApp, Instagram…): o download vem pela metade -->
+      <div class="aviso" id="aviso-embutido" hidden>
+        <strong>Voce abriu esta pagina dentro de outro app.</strong> O navegador do WhatsApp e do Instagram costuma cortar o download no meio e o Android diz que "o pacote parece ser invalido". Abra no Chrome e baixe por la.
+        <div class="acao" style="margin-top:10px">
+          <a class="btn btn-primary" id="btn-chrome" href="#" rel="noopener">Abrir no Chrome</a>
+          <button type="button" class="btn" id="btn-copiar-link">Copiar o link</button>
+        </div>
+        <p class="meta" style="text-align:left;margin-top:8px">Se o botao nao abrir o Chrome: toque nos tres pontinhos no canto da tela e escolha <strong>Abrir no navegador</strong>.</p>
+      </div>
+
       <ol class="passos">
 
         <li class="passo">
@@ -583,6 +593,13 @@ footer .sep { opacity: .4; margin: 0 8px; }
         </li>
 
       </ol>
+
+      <div class="aviso" id="deu-erro">
+        <strong>Deu erro na instalacao?</strong>
+        <p style="margin:8px 0 0"><em>"O pacote parece ser invalido"</em> ou <em>"erro ao analisar o pacote"</em>: o download veio pela metade. Apague o <strong>duka.apk</strong> da pasta Downloads, conecte no Wi-Fi e baixe de novo <strong>pelo Chrome</strong> (nao pelo WhatsApp). O arquivo inteiro tem <span id="tam-esperado">o tamanho mostrado no botao</span>.</p>
+        <p style="margin:8px 0 0"><em>"App nao foi instalado"</em> ou a instalacao para no meio: falta espaco. O Android precisa de uns 300 MB livres pra instalar. Apague fotos ou videos, esvazie o WhatsApp em <strong>Configuracoes &gt; Armazenamento</strong>, reinicie o celular e tente de novo.</p>
+        <p style="margin:8px 0 0">Continua? Escreva pro suporte dizendo o modelo do celular e a mensagem exata que apareceu.</p>
+      </div>
 
       <div class="aviso calmo">
         <strong>Por que tanto aviso?</strong> O Duka ainda nao esta na Play Store, entao o Android trata o arquivo como fonte desconhecida. Os alertas sao normais nesse caminho e nao indicam problema no app.
@@ -650,6 +667,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
   var APK_DISPONIVEL = '__APK_DISPONIVEL__' === '1'
   var APK_TAMANHO = '__APK_TAMANHO__'
   var APK_VERSAO = '__APK_VERSAO__'
+  var APK_SHA = '__APK_SHA__'
   var EMAIL = '__SUPORTE_EMAIL__'
 
   // Liga os links de suporte sem deixar o endereco cru no HTML.
@@ -669,6 +687,11 @@ footer .sep { opacity: .4; margin: 0 8px; }
   }
   function ehAndroid() {
     return /Android/i.test(navigator.userAgent || '')
+  }
+  /** WebView de outro app (WhatsApp, Instagram, Facebook, Messenger, Telegram…). */
+  function navegadorEmbutido() {
+    var ua = navigator.userAgent || ''
+    return /\bwv\b|WhatsApp|Instagram|FBAN|FBAV|FB_IAB|Messenger|Telegram|Line\//i.test(ua)
   }
 
   /**
@@ -692,8 +715,24 @@ footer .sep { opacity: .4; margin: 0 8px; }
     if (APK_TAMANHO) partes.push(APK_TAMANHO)
     if (partes.length) {
       var meta = document.getElementById('apk-meta')
-      meta.textContent = partes.join(' · ') + (APK_TAMANHO ? ' — prefira o Wi-Fi' : '')
+      meta.textContent = partes.join(' · ') + (APK_TAMANHO ? ' — prefira o Wi-Fi' : '') + (APK_SHA ? ' · SHA-256 ' + APK_SHA.slice(0, 10) + '…' : '')
       meta.hidden = false
+      if (APK_TAMANHO) document.getElementById('tam-esperado').textContent = APK_TAMANHO
+    }
+
+    // Dentro do WhatsApp/Instagram o download costuma vir truncado: oferece o Chrome.
+    if (navegadorEmbutido()) {
+      var aviso = document.getElementById('aviso-embutido')
+      aviso.hidden = false
+      var urlPagina = location.origin + location.pathname
+      document.getElementById('btn-chrome').href =
+        'intent://' + location.host + location.pathname + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(urlPagina) + ';end'
+      document.getElementById('btn-copiar-link').addEventListener('click', function () {
+        var b = this
+        function ok() { b.textContent = 'Link copiado — cole no Chrome' }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(urlPagina).then(ok, function () { window.prompt('Copie o link:', urlPagina) })
+        else window.prompt('Copie o link:', urlPagina)
+      })
     }
   }
 

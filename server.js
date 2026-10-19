@@ -14,7 +14,9 @@
  */
 
 import { createServer } from 'node:http'
-import { readFileSync, existsSync, statSync, createReadStream } from 'node:fs'
+import { readFileSync, existsSync, statSync, createReadStream, createWriteStream, mkdirSync, renameSync, unlinkSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { pipeline } from 'node:stream/promises'
 import { join, extname, normalize } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -124,6 +126,25 @@ if (APK_LOCAL) {
   console.log(`[config] APK local em ${APK_LOCAL} — em producao prefira APK_URL (Releases)`)
 }
 
+/**
+ * Cache local do anexo do release.
+ *
+ * O link do GitHub Releases redireciona pra uma URL assinada que expira em
+ * minutos. No navegador embutido do WhatsApp (e em rede movel caindo) o
+ * download vinha pela metade e o Android dizia "o pacote parece ser invalido"
+ * (S21 FE, 08/10). Servindo o arquivo daqui, com Content-Length e Range, o
+ * download e retomavel e nunca expira. O arquivo e baixado uma vez por versao
+ * (ver baixarParaCache) e conferido pelo tamanho que a API do GitHub informa.
+ */
+const CACHE_DIR = join(BASE, 'cache')
+const CACHE_APK = join(CACHE_DIR, 'duka.apk')
+let cacheInfo = null   // { tag, tamanho, sha256 }
+
+function hrefApk() {
+  if (APK_LOCAL) return '/duka.apk'
+  if (cacheInfo && existsSync(CACHE_APK)) return '/duka.apk'
+  return APK_URL
+}
 const APK_HREF = APK_URL || (APK_LOCAL ? '/duka.apk' : '')
 
 /** Tamanho legivel, pra pessoa saber no que esta se metendo no 4G. */
@@ -174,7 +195,8 @@ function montarPagina() {
     .replaceAll('__TERMOS_URL__', esc(TERMOS_URL))
     .replaceAll('__SUPORTE_EMAIL__', esc(SUPORTE_EMAIL))
     .replaceAll('__CONFIGURADO__', linkValido ? '1' : '0')
-    .replaceAll('__APK_URL__', esc(APK_HREF))
+    .replaceAll('__APK_URL__', esc(hrefApk()))
+    .replaceAll('__APK_SHA__', esc(cacheInfo?.sha256 || ''))
     .replaceAll('__APK_DISPONIVEL__', apkPublicado ? '1' : '0')
     .replaceAll('__APK_TAMANHO__', esc(APK_TAMANHO))
     .replaceAll('__APK_VERSAO__', esc(APK_VERSAO))
@@ -249,9 +271,50 @@ async function atualizarRelease() {
     if (!process.env.APK_TAMANHO && info.tamanho) APK_TAMANHO = mb(info.tamanho)
     PAGINA = montarPagina()
     console.log(`[release] ${info.tag || 'sem tag'} · ${APK_TAMANHO || 'tamanho desconhecido'}`)
+    await baixarParaCache(info)
+    PAGINA = montarPagina()
   } catch (e) {
     // Rede ruim nao pode esconder um download que existe: mantem como esta.
     console.warn(`[release] sondagem falhou, mantendo a configuracao atual: ${e.message}`)
+  }
+}
+
+/** SHA-256 de um arquivo, em stream (134 MB nao cabem na memoria do container com folga). */
+async function sha256(caminho) {
+  const h = createHash('sha256')
+  for await (const parte of createReadStream(caminho)) h.update(parte)
+  return h.digest('hex')
+}
+
+/**
+ * Baixa o anexo do release pro cache, uma vez por versao. Grava em .part e so
+ * renomeia quando o tamanho bate com o que a API informou — um download
+ * truncado aqui nunca vira arquivo servido.
+ */
+async function baixarParaCache(info) {
+  if (!info?.tamanho) return
+  if (cacheInfo && cacheInfo.tag === info.tag && cacheInfo.tamanho === info.tamanho && existsSync(CACHE_APK)) return
+  try {
+    mkdirSync(CACHE_DIR, { recursive: true })
+    // container reiniciou com o arquivo certo ja no disco? aproveita.
+    if (!cacheInfo && existsSync(CACHE_APK) && statSync(CACHE_APK).size === info.tamanho) {
+      cacheInfo = { tag: info.tag, tamanho: info.tamanho, sha256: await sha256(CACHE_APK) }
+      console.log(`[cache] APK ${info.tag} ja estava no disco · sha256 ${cacheInfo.sha256.slice(0, 12)}…`)
+      return
+    }
+    const parte = CACHE_APK + '.part'
+    console.log(`[cache] baixando o APK ${info.tag} (${mb(info.tamanho)}) do GitHub…`)
+    const r = await fetch(APK_URL, { redirect: 'follow', signal: AbortSignal.timeout(15 * 60 * 1000), headers: { 'user-agent': 'duka-beta' } })
+    if (!r.ok || !r.body) throw new Error(`GitHub respondeu ${r.status}`)
+    await pipeline(r.body, createWriteStream(parte))
+    const tam = statSync(parte).size
+    if (tam !== info.tamanho) { try { unlinkSync(parte) } catch {} ; throw new Error(`tamanho ${tam} ≠ ${info.tamanho} (download incompleto)`) }
+    renameSync(parte, CACHE_APK)
+    cacheInfo = { tag: info.tag, tamanho: info.tamanho, sha256: await sha256(CACHE_APK) }
+    console.log(`[cache] APK ${info.tag} pronto · sha256 ${cacheInfo.sha256.slice(0, 12)}…`)
+  } catch (e) {
+    // Sem cache a pagina continua apontando pro GitHub: pior, mas funciona.
+    console.warn(`[cache] nao consegui guardar o APK: ${e.message}`)
   }
 }
 
@@ -301,14 +364,19 @@ const servidor = createServer((req, res) => {
 
   if (caminho === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
-    return res.end(JSON.stringify({ ok: true, testflight: linkValido, apk: apkPublicado }))
+    return res.end(JSON.stringify({ ok: true, testflight: linkValido, apk: apkPublicado, cache: cacheInfo ? { tag: cacheInfo.tag, mb: mb(cacheInfo.tamanho), sha256: cacheInfo.sha256 } : null }))
   }
 
-  // ── APK local ────────────────────────────────────────────────────────────
-  // Reserva de desenvolvimento: em producao o arquivo vem do Releases.
-  if (caminho === '/duka.apk' && APK_LOCAL) {
+  // ── APK: arquivo local (dev) ou cache do release (producao) ──────────────
+  if (caminho === '/duka.apk') {
+    const arquivoApk = APK_LOCAL || ((cacheInfo && existsSync(CACHE_APK)) ? CACHE_APK : null)
+    if (!arquivoApk) {
+      // cache ainda nao pronto: manda pro GitHub mesmo
+      if (APK_URL) { res.writeHead(302, { Location: APK_URL, 'Cache-Control': 'no-store' }); return res.end() }
+      res.writeHead(404); return res.end('404')
+    }
     let tamanho
-    try { tamanho = statSync(APK_LOCAL).size } catch {
+    try { tamanho = statSync(arquivoApk).size } catch {
       res.writeHead(404); return res.end('404')
     }
 
@@ -320,6 +388,8 @@ const servidor = createServer((req, res) => {
       'Content-Type': 'application/vnd.android.package-archive',
       'Content-Disposition': 'attachment; filename="duka.apk"',
       'Accept-Ranges': 'bytes',
+      'Cache-Control': 'public, max-age=3600',
+      ...(cacheInfo?.sha256 ? { ETag: `"${cacheInfo.sha256.slice(0, 32)}"`, 'X-Checksum-Sha256': cacheInfo.sha256 } : null),
     }
 
     // 102 MB em rede movel cai com frequencia. Com Range, o navegador retoma
@@ -337,13 +407,13 @@ const servidor = createServer((req, res) => {
         'Content-Range': `bytes ${inicio}-${fim}/${tamanho}`,
         'Content-Length': fim - inicio + 1,
       })
-      return createReadStream(APK_LOCAL, { start: inicio, end: fim }).pipe(res)
+      return createReadStream(arquivoApk, { start: inicio, end: fim }).pipe(res)
     }
 
     res.writeHead(200, { ...cabecalhos, 'Content-Length': tamanho })
     // Stream, nao readFileSync: carregar 102 MB na memoria a cada download
     // derrubaria o container no primeiro punhado de pessoas simultaneas.
-    return createReadStream(APK_LOCAL).pipe(res)
+    return createReadStream(arquivoApk).pipe(res)
   }
 
   if (caminho === '/' || caminho === '/index.html') {
