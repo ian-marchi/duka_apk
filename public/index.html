@@ -444,7 +444,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
        iOS — o caminho principal
        ══════════════════════════════════════════════════════════ -->
   <div id="ios" hidden>
-    <p class="intro">Tres passos e o Duka esta no seu iPhone. Leva menos de um minuto.</p>
+    <p class="intro">Tres passos e o Duka esta no seu iPhone ou iPad. Leva menos de um minuto.</p>
 
     <ol class="passos">
 
@@ -512,8 +512,17 @@ footer .sep { opacity: .4; margin: 0 8px; }
         <rect x="5" y="2" width="14" height="20" rx="2.5"/><line x1="12" y1="18" x2="12.01" y2="18"/>
       </svg>
     </div>
-    <h2>Abra no seu celular</h2>
-    <p>O Duka se instala no aparelho, entao esta pagina precisa ser aberta nele. Ela reconhece se e iPhone ou Android e mostra o caminho certo.</p>
+    <h2>Abra no seu celular ou tablet</h2>
+    <p>O Duka se instala no aparelho, entao esta pagina precisa ser aberta nele. Ela reconhece se e iPhone, iPad ou Android e mostra o caminho certo.</p>
+
+    <!-- Tablet em "modo desktop" (ou qualquer navegador que se disfarce): a pessoa escolhe -->
+    <div class="aviso calmo" style="margin:14px 0">
+      <strong>Ja esta no tablet ou no celular e caiu aqui?</strong> Escolha o aparelho:
+      <div class="acao" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <button type="button" class="btn btn-soft escolher" data-alvo="android">Android (celular ou tablet)</button>
+        <button type="button" class="btn btn-soft escolher" data-alvo="ios">iPhone ou iPad</button>
+      </div>
+    </div>
 
     <div class="qr" id="qr"></div>
     <p class="qr-legenda">Aponte a camera do celular para o codigo</p>
@@ -535,7 +544,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
 
     <!-- APK disponivel: download + como instalar -->
     <div id="android-ok" hidden>
-      <p class="intro">No Android o Duka vem por download direto, fora da Play Store. Sao quatro passos.</p>
+      <p class="intro">No Android (celular ou tablet) o Duka vem por download direto, fora da Play Store. Sao quatro passos.</p>
 
       <!-- Navegador embutido (WhatsApp, Instagram…): o download vem pela metade -->
       <div class="aviso" id="aviso-embutido" hidden>
@@ -683,11 +692,17 @@ footer .sep { opacity: .4; margin: 0 8px; }
   function ehApple() {
     var ua = navigator.userAgent || ''
     if (/iPad|iPhone|iPod/.test(ua)) return true
-    return /Mac/.test(ua) && navigator.maxTouchPoints > 1
+    // iPadOS 13+ se apresenta como Mac; o toque entrega. Algumas versoes reportam 1 ponto, por isso >= 1.
+    return /Mac/.test(ua) && (navigator.maxTouchPoints >= 1 || 'ontouchend' in document)
   }
   function ehAndroid() {
-    return /Android/i.test(navigator.userAgent || '')
+    var ua = navigator.userAgent || ''
+    // Tablets Android nao trazem 'Mobile' no UA; alguns em modo desktop trazem so Linux + toque.
+    if (/Android/i.test(ua)) return true
+    return /Linux/i.test(ua) && !/Mac|Windows|CrOS/i.test(ua) && navigator.maxTouchPoints >= 1
   }
+  // ?d=android ou ?d=ios forca o bloco (link que a gente manda pra quem tem tablet)
+  var forcado = (/[?&]d=(android|ios)\b/.exec(location.search) || [])[1]
   /** WebView de outro app (WhatsApp, Instagram, Facebook, Messenger, Telegram…). */
   function navegadorEmbutido() {
     var ua = navigator.userAgent || ''
@@ -699,12 +714,24 @@ footer .sep { opacity: .4; margin: 0 8px; }
    * sozinho, e um visitante de Android via "vagas em breve" mesmo com o APK
    * pronto pra baixar — sao duas distribuicoes independentes.
    */
-  var alvo = ehApple()   ? (CONFIGURADO ? 'ios' : 'indisponivel')
+  var alvo = forcado === 'ios'     ? (CONFIGURADO ? 'ios' : 'indisponivel')
+           : forcado === 'android' ? 'android'
+           : ehApple()   ? (CONFIGURADO ? 'ios' : 'indisponivel')
            : ehAndroid() ? 'android'
            :               'desktop'
 
   var bloco = document.getElementById(alvo)
   if (bloco) bloco.hidden = false
+
+  // Botoes "escolha o aparelho" da tela do computador: troca o bloco sem recarregar.
+  Array.prototype.forEach.call(document.querySelectorAll('.escolher'), function (b) {
+    b.addEventListener('click', function () {
+      var novo = b.getAttribute('data-alvo') === 'ios' ? (CONFIGURADO ? 'ios' : 'indisponivel') : 'android'
+      ;['desktop', 'ios', 'android', 'indisponivel'].forEach(function (id) { var el = document.getElementById(id); if (el) el.hidden = id !== novo })
+      if (novo === 'android') document.getElementById(APK_DISPONIVEL ? 'android-ok' : 'android-breve').hidden = false
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  })
 
   if (alvo === 'android') {
     document.getElementById(APK_DISPONIVEL ? 'android-ok' : 'android-breve').hidden = false
