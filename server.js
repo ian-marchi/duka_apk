@@ -17,7 +17,7 @@ import { createServer } from 'node:http'
 import { readFileSync, existsSync, statSync, createReadStream, createWriteStream, mkdirSync, renameSync, unlinkSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { pipeline } from 'node:stream/promises'
-import { join, extname, normalize } from 'node:path'
+import { join, extname, normalize, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const BASE = fileURLToPath(new URL('.', import.meta.url))
@@ -360,7 +360,16 @@ const SEGURANCA = {
 }
 
 const servidor = createServer((req, res) => {
-  const caminho = decodeURIComponent((req.url || '/').split('?')[0])
+  // `decodeURIComponent` joga URIError com uma URL malformada ("/%"). Sem este
+  // try/catch a exceção sobe no listener e DERRUBA o processo — e com o
+  // restartPolicyMaxRetries do Railway, seis requisições tiram a página do ar.
+  let caminho
+  try {
+    caminho = decodeURIComponent((req.url || '/').split('?')[0])
+  } catch {
+    res.writeHead(400, SEGURANCA)
+    return res.end('400')
+  }
 
   if (caminho === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -394,11 +403,27 @@ const servidor = createServer((req, res) => {
 
     // 102 MB em rede movel cai com frequencia. Com Range, o navegador retoma
     // de onde parou em vez de recomecar do zero.
-    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '')
-    if (range) {
-      const inicio = range[1] ? Number(range[1]) : 0
-      const fim = range[2] ? Number(range[2]) : tamanho - 1
-      if (inicio >= tamanho || fim >= tamanho || inicio > fim) {
+    const rangeHeader = req.headers.range || ''
+    const etag = cacheInfo?.sha256 ? `"${cacheInfo.sha256.slice(0, 32)}"` : null
+    // Se o cliente retoma com If-Range e o arquivo mudou (ETag diferente), o
+    // pedaco antigo nao casa com o novo: ignora o Range e manda o arquivo
+    // inteiro, pra ele recomecar limpo em vez de colar bytes de versoes
+    // diferentes (o "pacote invalido" que o cache veio curar).
+    const ifRange = req.headers['if-range']
+    const podeRange = rangeHeader && (!ifRange || !etag || ifRange === etag)
+    const range = podeRange ? /^bytes=(\d*)-(\d*)$/.exec(rangeHeader) : null
+    if (range && (range[1] || range[2])) {
+      let inicio, fim
+      if (range[1]) {
+        inicio = Number(range[1])
+        // RFC 9110: um fim alem do arquivo nao e erro, e pra ser cortado.
+        fim = range[2] ? Math.min(Number(range[2]), tamanho - 1) : tamanho - 1
+      } else {
+        // Sufixo "bytes=-500" = os ULTIMOS 500 bytes (nao os primeiros).
+        inicio = Math.max(0, tamanho - Number(range[2]))
+        fim = tamanho - 1
+      }
+      if (inicio >= tamanho || inicio > fim) {
         res.writeHead(416, { 'Content-Range': `bytes */${tamanho}` })
         return res.end()
       }
@@ -407,13 +432,16 @@ const servidor = createServer((req, res) => {
         'Content-Range': `bytes ${inicio}-${fim}/${tamanho}`,
         'Content-Length': fim - inicio + 1,
       })
-      return createReadStream(arquivoApk, { start: inicio, end: fim }).pipe(res)
+      // `pipeline` (nao `.pipe`) destroi os dois lados se o cliente abortar o
+      // download — senao o descritor fica aberto e, acumulando, derruba o
+      // processo com EMFILE num `error` sem listener.
+      return pipeline(createReadStream(arquivoApk, { start: inicio, end: fim }), res).catch(() => {})
     }
 
     res.writeHead(200, { ...cabecalhos, 'Content-Length': tamanho })
     // Stream, nao readFileSync: carregar 102 MB na memoria a cada download
     // derrubaria o container no primeiro punhado de pessoas simultaneas.
-    return createReadStream(arquivoApk).pipe(res)
+    return pipeline(createReadStream(arquivoApk), res).catch(() => {})
   }
 
   if (caminho === '/' || caminho === '/index.html') {
@@ -424,7 +452,8 @@ const servidor = createServer((req, res) => {
   // Estatico. `normalize` + a checagem de prefixo impedem `../` de escapar
   // da pasta public e servir qualquer arquivo do container.
   const alvo = normalize(join(RAIZ, caminho))
-  if (!alvo.startsWith(RAIZ)) {
+  // Prefixo COM separador: sem o `sep`, `/..publicfoo` passaria por `startsWith`.
+  if (alvo !== RAIZ && !alvo.startsWith(RAIZ + sep)) {
     res.writeHead(403)
     return res.end('403')
   }
