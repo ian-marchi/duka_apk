@@ -5,7 +5,7 @@
   "description": "Pagina de entrada no teste beta do Duka via TestFlight",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": "24.22.1"
   },
   "scripts": {
     "start": "node server.js",
