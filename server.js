@@ -444,6 +444,24 @@ const servidor = createServer((req, res) => {
     return pipeline(createReadStream(arquivoApk), res).catch(() => {})
   }
 
+  // ── Volta do pagamento (Stripe Checkout do APK, migration 129) ──────────
+  // O Stripe só aceita URL https de retorno; esta página devolve o aluno pro
+  // app pelo esquema duke:// (o app fecha a aba sozinho quando vê o esquema).
+  if (caminho === '/pagamento') {
+    const st = new URL(req.url || '/', 'http://x').searchParams.get('status')
+    const status = ['ok', 'cancelado', 'portal'].includes(st) ? st : 'ok'
+    const titulo = status === 'ok' ? 'Pagamento recebido!' : status === 'portal' ? 'Pronto!' : 'Pagamento cancelado'
+    const texto = status === 'ok' ? 'Seu Duka Premium já está sendo liberado. Volte pro app.'
+      : status === 'portal' ? 'Suas alterações foram salvas. Volte pro app.'
+      : 'Nada foi cobrado. Você pode tentar de novo pelo app quando quiser.'
+    const volta = `duke://premium?status=${status}`
+    res.writeHead(200, { ...SEGURANCA, 'Content-Type': TIPOS['.html'], 'Cache-Control': 'no-store' })
+    return res.end(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Duka</title>
+<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif;background:#f6f3fb;color:#1d1530;text-align:center}main{padding:32px 24px;max-width:360px}h1{font-size:24px;margin:0 0 8px}p{color:#5b5470;line-height:1.5}a{display:inline-block;margin-top:16px;background:#662d91;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:14px}</style></head>
+<body><main><h1>${titulo}</h1><p>${texto}</p><a href="${volta}">Voltar pro Duka</a></main>
+<script>setTimeout(function(){location.href=${JSON.stringify(volta)}},400)</script></body></html>`)
+  }
+
   if (caminho === '/' || caminho === '/index.html') {
     res.writeHead(200, { ...SEGURANCA, 'Content-Type': TIPOS['.html'], 'Cache-Control': 'no-cache' })
     return res.end(PAGINA)
