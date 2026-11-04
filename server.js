@@ -359,6 +359,28 @@ const SEGURANCA = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
 }
 
+/**
+ * Cadastro do APK no site (migration 134): o link vem com ?c=DK-XXXXXX e aqui
+ * se marca "download comecou" (pedido do inicio do arquivo) e "terminou" (o
+ * pedaco que inclui o ultimo byte foi enviado inteiro). A chave anon e publica
+ * e so executa a RPC lead_apk_download. Falha aqui nunca atrapalha o download.
+ */
+const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://kpmsvfbjgrhynxdewppw.supabase.co').trim()
+const SUPABASE_ANON = (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwbXN2ZmJqZ3JoeW54ZGV3cHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk3OTUyMjUsImV4cCI6MjA5NTM3MTIyNX0.uQy9L7Kemgv53e5mPf9Jr6CTPc2tVYpi2y4WYILb_sY').trim()
+function marcarDownload(codigo, fase) {
+  if (!codigo) return
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/lead_apk_download`, {
+    method: 'POST',
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ p_codigo: codigo, p_fase: fase }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => {})
+}
+function codigoLead(url) {
+  const c = new URL(url || '/', 'http://x').searchParams.get('c') || ''
+  return /^DK-[A-Z0-9]{6}$/i.test(c) ? c.toUpperCase() : null
+}
+
 const servidor = createServer((req, res) => {
   // `decodeURIComponent` joga URIError com uma URL malformada ("/%"). Sem este
   // try/catch a exceção sobe no listener e DERRUBA o processo — e com o
@@ -378,10 +400,11 @@ const servidor = createServer((req, res) => {
 
   // ── APK: arquivo local (dev) ou cache do release (producao) ──────────────
   if (caminho === '/duka.apk') {
+    const lead = codigoLead(req.url)
     const arquivoApk = APK_LOCAL || ((cacheInfo && existsSync(CACHE_APK)) ? CACHE_APK : null)
     if (!arquivoApk) {
-      // cache ainda nao pronto: manda pro GitHub mesmo
-      if (APK_URL) { res.writeHead(302, { Location: APK_URL, 'Cache-Control': 'no-store' }); return res.end() }
+      // cache ainda nao pronto: manda pro GitHub mesmo (so da pra marcar o inicio)
+      if (APK_URL) { marcarDownload(lead, 'inicio'); res.writeHead(302, { Location: APK_URL, 'Cache-Control': 'no-store' }); return res.end() }
       res.writeHead(404); return res.end('404')
     }
     let tamanho
@@ -432,16 +455,22 @@ const servidor = createServer((req, res) => {
         'Content-Range': `bytes ${inicio}-${fim}/${tamanho}`,
         'Content-Length': fim - inicio + 1,
       })
+      if (inicio === 0) marcarDownload(lead, 'inicio')
       // `pipeline` (nao `.pipe`) destroi os dois lados se o cliente abortar o
       // download — senao o descritor fica aberto e, acumulando, derruba o
       // processo com EMFILE num `error` sem listener.
-      return pipeline(createReadStream(arquivoApk, { start: inicio, end: fim }), res).catch(() => {})
+      return pipeline(createReadStream(arquivoApk, { start: inicio, end: fim }), res)
+        .then(() => { if (fim === tamanho - 1) marcarDownload(lead, 'fim') })
+        .catch(() => {})
     }
 
+    marcarDownload(lead, 'inicio')
     res.writeHead(200, { ...cabecalhos, 'Content-Length': tamanho })
     // Stream, nao readFileSync: carregar 102 MB na memoria a cada download
     // derrubaria o container no primeiro punhado de pessoas simultaneas.
-    return pipeline(createReadStream(arquivoApk), res).catch(() => {})
+    return pipeline(createReadStream(arquivoApk), res)
+      .then(() => marcarDownload(lead, 'fim'))
+      .catch(() => {})
   }
 
   // ── Volta do pagamento (Stripe Checkout do APK, migration 129) ──────────
