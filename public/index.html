@@ -130,14 +130,13 @@ body {
 .mark .cls-4, .mark .cls-5, .mark .cls-6 { stroke-width: 0; }
 
 .wordmark {
-  font-family: var(--mark);
-  font-weight: 500;
-  font-size: 46px;
-  letter-spacing: -.01em;
-  text-align: center;
-  margin: 14px 0 0;
-  color: var(--text);
-  line-height: 1;
+  /* Logomarca oficial (Path_app/icons/oficial, 12/11/2026) na cor do texto */
+  display: block;
+  width: 150px; height: 49px;
+  margin: 14px auto 0;
+  background: var(--text);
+  -webkit-mask: url(/duka-logomarca.svg) no-repeat center / contain;
+          mask: url(/duka-logomarca.svg) no-repeat center / contain;
 }
 
 .selo {
@@ -370,7 +369,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
 
 @media (max-width: 380px) {
   .card { padding: 28px 16px 22px; }
-  .wordmark { font-size: 40px; }
+  .wordmark { width: 130px; height: 43px; }
   .passo { grid-template-columns: 30px 1fr; gap: 11px; }
   .n { width: 30px; height: 30px; font-size: 14px; }
 }
@@ -439,7 +438,7 @@ footer .sep { opacity: .4; margin: 0 8px; }
     </g>
   </svg>
 
-  <p class="wordmark">Duka</p>
+  <p class="wordmark" role="img" aria-label="Duka"></p>
   <span class="selo">Beta fechado &middot; iPhone e Android</span>
 
   <!-- ══════════════════════════════════════════════════════════

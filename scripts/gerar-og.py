@@ -17,7 +17,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 AQUI = Path(__file__).resolve().parent
 PROJETO = AQUI.parent
-PATH_APP = Path(r"G:\ian\prog\Path_app")
+PATH_APP = Path(__file__).resolve().parents[2] / "Path_app"  # irmão desta pasta (era G:, o disco mudou de letra)
 
 SAIDA = PROJETO / "public" / "og.png"
 ICONE = PROJETO / "public" / "icon.png"
